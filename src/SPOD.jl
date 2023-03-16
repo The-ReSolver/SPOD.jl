@@ -5,17 +5,9 @@ using LinearAlgebra, FFTW
 # ! Ways to improve the code:
 # !     - include windowing;
 # !     - type to treat snapshot array as vector;
-# !     - use FFT plans to spead up loop processes.
-# !     - clearly some parts of this are dying for views of arrays instead of assignment
-
-# ! Julia points to outline before discussing code:
-# !     - type of arguments in function definitions;
-# !     - container type syntax;
-# !     - indexing starts at 1;
-# !     - unicode can be included;
-# !     - nested loop syntax;
-# !     - let them know what @view does;
-# !     - explain the dot syntax.
+# !     - use FFT plans to spead up loop processes;
+# !     - clearly some parts of this are dying for views of arrays instead of assignment;
+# !     - use in place mul! for the matrix multiplication
 
 # define abstract widnowing type to allow dispatch on specific window used
 abstract type WindowMethod end
@@ -28,6 +20,17 @@ window_types = [:NoWindow,       :Hamming,     :Bartlett,   :BartlettHann,
 for window in window_types
     @eval begin
         struct $window <: WindowMethod end
+    end
+end
+
+# TODO: check this fuckery works
+apply_window!(Q::AbstractMatrix, ::NoWindow) = Q
+implemented_windowing = [:NoWindow]
+for window in window_types
+    if window ∉ implemented_windowing
+        @eval begin
+            apply_window!(::AbstractMatrix, ::$window) = throw(ArgumentError($window, " windowing is not implement yet!"))
+        end
     end
 end
 
@@ -85,6 +88,7 @@ function split_into_blocks(Q::Matrix, Nf::Int, No::Int)
     return Q_blocks
 end
 
+# ! Normalisation???
 """
     Compute the Fourier transform of a single block of a total snapshot matrix. 
 """
@@ -104,7 +108,7 @@ fft_time(Q::Matrix) = FFTW.fft(Q, 2)
     currently supported. The decomposition can be truncated by passing a unit
     range to eigrange.
 """
-function spod(Q::Matrix{ComplexF64}, quad_weights::Vector{Float64}, Nf::Int, No::Int=0; window::WindowMethod=NoWindow(), eigrange::Union{Nothing, UnitRange}=nothing)
+function spod(Q::Matrix{ComplexF64}, quad_weights::Vector{Float64}, Nf::Int, No::Int=0; window::WindowMethod=NoWindow() eigrange::Union{Nothing, UnitRange}=nothing)
     # get size of snapshot vectors
     N = size(Q, 1)
 
@@ -118,7 +122,7 @@ function spod(Q::Matrix{ComplexF64}, quad_weights::Vector{Float64}, Nf::Int, No:
 
     # loop over blocks and perform the time-wise FFT
     for (i, block) in enumerate(Q_blocks)
-        Q̂_blocks[i] = fft_time(block)
+        Q̂_blocks[i] = fft_time(apply_window!(block, window))
     end
 
     # initialise useful arrays
