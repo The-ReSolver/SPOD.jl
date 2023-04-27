@@ -62,6 +62,7 @@ end
 """
 fft_time(Q::AbstractMatrix) = FFTW.fft(Q, 2)
 
+# TODO: add Int to Union for eigrange to allow picking specific mode more intuitive
 """
     spod(
         Q::Matrix{Float64},
@@ -122,5 +123,5 @@ function spod(Q::M, quad_weights::AbstractVector, Nf::Int, No::Int=0; window::Wi
 end
 
 truncate_eigen!(::AbstractVector, ::AbstractMatrix, ::Nothing) = nothing
-truncate_eigen!(eigvals::AbstractVector, eigvecs::AbstractMatrix, eigrange::UnitRange) = (eigvals[eigrange]; eigvecs[:, eigrange]; return nothing)
+truncate_eigen!(eigvals::AbstractVector, eigvecs::AbstractMatrix, eigrange::UnitRange) = (eigvals = eigvals[eigrange]; eigvecs = eigvecs[:, eigrange]; return nothing)
 end
