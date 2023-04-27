@@ -62,7 +62,6 @@ end
 """
 fft_time(Q::AbstractMatrix) = FFTW.fft(Q, 2)
 
-# TODO: add Int to Union for eigrange to allow picking specific mode more intuitive
 """
     spod(
         Q::Matrix{Float64},
@@ -77,7 +76,7 @@ fft_time(Q::AbstractMatrix) = FFTW.fft(Q, 2)
     currently supported. The decomposition can be truncated by passing a unit
     range to eigrange.
 """
-function spod(Q::M, quad_weights::AbstractVector, Nf::Int, No::Int=0; window::WindowMethod=NoWindow(), eigrange::Union{Nothing, UnitRange}=nothing) where {M <: AbstractMatrix}
+function spod(Q::M, quad_weights::AbstractVector, Nf::Int, No::Int=0; window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int, UnitRange}=nothing) where {M <: AbstractMatrix}
     # get size of snapshot vectors
     N = size(Q, 1)
 
@@ -124,4 +123,5 @@ end
 
 truncate_eigen!(::AbstractVector, ::AbstractMatrix, ::Nothing) = nothing
 truncate_eigen!(eigvals::AbstractVector, eigvecs::AbstractMatrix, eigrange::UnitRange) = (eigvals = eigvals[eigrange]; eigvecs = eigvecs[:, eigrange]; return nothing)
+truncate_eigen!(eigvals::AbstractVector, eigvecs::AbstractMatrix, eigrange::Int) = (eigvals = [eigvals[eigrange]]; eigvecs = eigvecs[:, eigrange]; return nothing)
 end
