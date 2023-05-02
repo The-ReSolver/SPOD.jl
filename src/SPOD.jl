@@ -1,8 +1,8 @@
 module SPOD
 
-using LinearAlgebra, FFTW
+using LinearAlgebra, FFTW, Printf
 
-export spod!
+export spod
 
 # ! Ways to improve the code:
 # !     - include windowing;
@@ -28,20 +28,24 @@ include("window.jl")
     currently supported. The decomposition can be truncated by passing a unit
     range to eigrange.
 """
-function spod!(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int=0; window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int, UnitRange}=nothing) where {M <: AbstractMatrix}
+function spod(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int=0; verbose::Bool=false, window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int, UnitRange}=nothing) where {M <: AbstractMatrix}
     # get size of snapshot vectors
     N = size(Q, 1)
 
     # split Q into blocks with overlap
+    verbose && print("Splitting snapshot matrix into blocks...")
     Q_blocks, Nb = split_into_blocks(Q, Nf, No)
+    verbose && println("Done!")
 
     # initialise matrix to hold FFT of snapshot matrix blocks
     Q̂_blocks = Vector{typeof(Q)}(undef, length(Q_blocks))
 
     # loop over blocks and perform the time-wise FFT
+    verbose && print("Fourier transforming snapshot blocks... ")
     for (i, block) in enumerate(Q_blocks)
         Q̂_blocks[i] = fft_time(apply_window!(block, window))
     end
+    verbose && println("Done!")
     Nω = size(Q̂_blocks[1], 2)
 
     # initialise useful arrays
@@ -63,6 +67,8 @@ function spod!(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int
 
     # loop over the frequencies of all the blocks
     for fk in 1:Nω
+        sleep(0.25)
+        verbose && @printf("Solving Eigenproblem for every frequency... fk = %i/%i\r", fk, Nω)
         # construct fourier realisation matrices for each block
         for nb in 1:Nb
             Qfk[:, nb] .= sqrt_κ.*@view(Q̂_blocks[nb][:, fk])
@@ -81,6 +87,7 @@ function spod!(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int
         # convert the eivenvectors to the correct SPOD modes
         spod_modes[:, :, fk] .= Qfk*eigvecs*Diagonal(@view(eigvals[:, fk]).^-0.5)
     end
+    verbose && print("Solving Eigenproblem for every frequency... Done!                     ")
 
     return eigvals, spod_modes
 end
