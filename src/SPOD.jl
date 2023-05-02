@@ -1,6 +1,6 @@
 module SPOD
 
-using LinearAlgebra, FFTW, Printf
+using LinearAlgebra, FFTW
 
 export spod
 
@@ -67,8 +67,7 @@ function spod(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int=
 
     # loop over the frequencies of all the blocks
     for fk in 1:Nω
-        sleep(0.25)
-        verbose && @printf("Solving Eigenproblem for every frequency... fk = %i/%i\r", fk, Nω)
+        verbose && print("Solving Eigenproblem for every frequency... fk = ", fk, "/", Nω, "\r")
         # construct fourier realisation matrices for each block
         for nb in 1:Nb
             Qfk[:, nb] .= sqrt_κ.*@view(Q̂_blocks[nb][:, fk])
@@ -87,7 +86,7 @@ function spod(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int=
         # convert the eivenvectors to the correct SPOD modes
         spod_modes[:, :, fk] .= Qfk*eigvecs*Diagonal(@view(eigvals[:, fk]).^-0.5)
     end
-    verbose && print("Solving Eigenproblem for every frequency... Done!                     ")
+    verbose && println("Solving Eigenproblem for every frequency... Done!                     ")
 
     return eigvals, spod_modes
 end
