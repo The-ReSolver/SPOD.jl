@@ -44,16 +44,16 @@ function split_into_blocks(Q::M, Nf::Int, No::Int) where {M <: AbstractMatrix}
     Nb = floor(Int, (size(Q, 2) - No)/(Nf - No))
 
     # initialise vector to hold block arrays
-    Q_blocks = [M(undef, size(Q, 1), Nf) for _ in Nb]
+    Q_blocks = [M(undef, size(Q, 1), Nf) for _ in 1:Nb]
 
     # loop over the blocks and take views of snapshot matrix
     for nb in 1:Nb
-        block_index_dist = (nb - 1)*(Nf - No)
+        offset = (nb - 1)*(Nf - No)
         # TODO: change to copyto! so that the original matrix isn't affected by windowing
-        Q_blocks[nb] = @view(Q[:, (1 + block_index_dist):(Nf + block_index_dist)])
+        Q_blocks[nb] = @view(Q[:, (1 + offset):(Nf + offset)])
     end
 
-    return Q_blocks
+    return Q_blocks, Nb
 end
 
 # ! Normalisation???
@@ -76,46 +76,58 @@ fft_time(Q::AbstractMatrix) = FFTW.fft(Q, 2)
     currently supported. The decomposition can be truncated by passing a unit
     range to eigrange.
 """
-function spod(Q::M, quad_weights::AbstractVector, Nf::Int, No::Int=0; window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int, UnitRange}=nothing) where {M <: AbstractMatrix}
+function spod(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int=0; window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int, UnitRange}=nothing) where {M <: AbstractMatrix}
     # get size of snapshot vectors
     N = size(Q, 1)
 
     # split Q into blocks with overlap
-    Q_blocks = split_into_blocks(Q, Nf, No)
-    Nb = length(Q_blocks)
+    Q_blocks, Nb = split_into_blocks(Q, Nf, No)
 
     # initialise matrix to hold FFT of snapshot matrix blocks
     Q̂_blocks = Vector{typeof(Q)}(undef, length(Q_blocks))
-    Nω = size(Q̂_blocks[1], 2)
 
     # loop over blocks and perform the time-wise FFT
     for (i, block) in enumerate(Q_blocks)
         Q̂_blocks[i] = fft_time(apply_window!(block, window))
     end
+    Nω = size(Q̂_blocks[1], 2)
 
     # initialise useful arrays
     Qfk = M(undef, N, Nb)
-    Mfk = M(undef, N, Nb)
-    spod_modes = [M(undef, N, Nb) for _ in 1:Nω]
+    Mfk = M(undef, Nb, Nb)
+    eigvals = Matrix{Float64}(undef, Nb, Nω)
+    spod_modes = Array{ComplexF64, 3}(undef, N, Nb, Nω)
+
+    # construct the weight matrix (quadrature + windowing)
+    Z = zeros((Int(N/3), Int(N/3)))
+    W1 = Diagonal(quad_weights)
+    W =    [W1 Z  Z;
+            Z  W1 Z;
+            Z  Z  W1]
+
+    # compute the realisation scaling constant
+    # FIXME: including κ in the computation messes up the mode magnitude
+    sqrt_κ = sqrt(dt/(Nf*Nb))
 
     # loop over the frequencies of all the blocks
     for fk in 1:Nω
         # construct fourier realisation matrices for each block
         for nb in 1:Nb
-            Qfk[:, nb] .= @view(Q̂_blocks[nb][:, fk])
+            Qfk[:, nb] .= sqrt_κ.*@view(Q̂_blocks[nb][:, fk])
         end
 
         # compute the weights cross-spectral density matrix for each frequency
-        Mfk .= adjoint(Qfk)*Diagonal(quad_weights)*Qfk
+        Mfk .= Qfk'*W*Qfk
 
         # compute the eigenvalue decomposition
-        eigvals, eigvecs = eigen(Hermitian(Mfk), sortby=(x -> -real(x)))
+        eigvals[:, fk], eigvecs = eigen(Hermitian(Mfk), sortby=(x -> -x))
 
         # take range if needed
-        truncate_eigen!(eigvals, eigvecs, eigrange)
+        # FIXME: truncation is broken due to change in size not being compatible with size of original array
+        truncate_eigen!(@view(eigvals[:, fk]), eigvecs, eigrange)
 
         # convert the eivenvectors to the correct SPOD modes
-        spod_modes[fk] .= Qfk*eigvecs*Diagonal(eigvals.^-0.5)
+        spod_modes[:, :, fk] .= Qfk*eigvecs*Diagonal(@view(eigvals[:, fk]).^-0.5)
     end
 
     return eigvals, spod_modes
