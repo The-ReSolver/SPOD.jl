@@ -28,7 +28,7 @@ include("window.jl")
     currently supported. The decomposition can be truncated by passing a unit
     range to eigrange.
 """
-function spod(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int=0; verbose::Bool=false, window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int, UnitRange}=nothing) where {M <: AbstractMatrix}
+function spod(Q::M, ws::AbstractVector, dt::Float64, Nf::Int, No::Int=0; verbose::Bool=false, window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int, UnitRange}=nothing) where {M <: AbstractMatrix}
     # get size of snapshot vectors
     N = size(Q, 1)
 
@@ -55,15 +55,11 @@ function spod(Q::M, quad_weights::AbstractVector, dt::Float64, Nf::Int, No::Int=
     spod_modes = Array{ComplexF64, 3}(undef, N, Nb, Nω)
 
     # construct the weight matrix (quadrature + windowing)
-    Z = zeros((Int(N/3), Int(N/3)))
-    W1 = Diagonal(quad_weights)
-    W =    [W1 Z  Z;
-            Z  W1 Z;
-            Z  Z  W1]
+    W = construct_weight_matrix(ws, N)
 
     # compute the realisation scaling constant
     # FIXME: including κ in the computation messes up the mode magnitude
-    sqrt_κ = sqrt(dt/(Nf*Nb))
+    sqrt_κ = sqrt(dt/(window_factor(Nf, window)*Nb))
 
     # loop over the frequencies of all the blocks
     for fk in 1:Nω

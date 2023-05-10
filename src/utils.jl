@@ -27,6 +27,16 @@ end
 """
 fft_time(Q::AbstractMatrix) = FFTW.fft(Q, 2)
 
+function construct_weight_matrix(ws::AbstractVector, N::Int)
+    Z = zeros((Int(N/3), Int(N/3)))
+    W1 = Diagonal(ws)
+    W =    [W1 Z  Z;
+            Z  W1 Z;
+            Z  Z  W1]
+
+    return W
+end
+
 truncate_eigen!(::AbstractVector, ::AbstractMatrix, ::Nothing) = nothing
 truncate_eigen!(eigvals::AbstractVector, eigvecs::AbstractMatrix, eigrange::UnitRange) = (eigvals = eigvals[eigrange]; eigvecs = eigvecs[:, eigrange]; return nothing)
 truncate_eigen!(eigvals::AbstractVector, eigvecs::AbstractMatrix, eigrange::Int) = (eigvals = [eigvals[eigrange]]; eigvecs = eigvecs[:, eigrange]; return nothing)
