@@ -15,8 +15,7 @@ function split_into_blocks(Q::M, Nf::Int, No::Int) where {M <: AbstractMatrix}
     # loop over the blocks and take views of snapshot matrix
     for nb in 1:Nb
         offset = (nb - 1)*(Nf - No)
-        # TODO: change to copyto! so that the original matrix isn't affected by windowing
-        Q_blocks[nb] = @view(Q[:, (1 + offset):(Nf + offset)])
+        copyto!(Q_blocks[nb], @view(Q[:, (1 + offset):(Nf + offset)]))
     end
 
     return Q_blocks, Nb
