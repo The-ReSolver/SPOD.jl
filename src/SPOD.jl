@@ -4,13 +4,6 @@ using LinearAlgebra, FFTW
 
 export spod
 
-# ! Ways to improve the code:
-# !     - include windowing;
-# !     - type to treat snapshot array as vector;
-# !     - use FFT plans to spead up loop processes;
-# !     - clearly some parts of this are dying for views of arrays instead of assignment;
-# !     - use in place mul! for the matrix multiplication
-
 include("utils.jl")
 include("window.jl")
 
@@ -28,7 +21,7 @@ include("window.jl")
     currently supported. The decomposition can be truncated by passing a unit
     range to eigrange.
 """
-function spod(Q::M, ws::AbstractVector, dt::Float64, Nf::Int, No::Int=0; verbose::Bool=false, window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int, UnitRange}=nothing) where {M <: AbstractMatrix}
+function spod(Q::M, ws::AbstractVector, dt::Float64, Nf::Int, No::Int=0; verbose::Bool=false, window::WindowMethod=NoWindow(), eigrange::Union{Nothing, Int}=nothing) where {M <: AbstractMatrix}
     # get size of snapshot vectors
     N = size(Q, 1)
 
@@ -51,14 +44,14 @@ function spod(Q::M, ws::AbstractVector, dt::Float64, Nf::Int, No::Int=0; verbose
     # initialise useful arrays
     Qfk = M(undef, N, Nb)
     Mfk = M(undef, Nb, Nb)
-    eigvals = Matrix{Float64}(undef, Nb, Nω)
-    spod_modes = Array{ComplexF64, 3}(undef, N, Nb, Nω)
+    eigvals = genEigvalues(Nb, Nω, eigrange)
+    spod_modes = genModeArray(N, Nb, Nω, eigrange)
 
     # construct the weight matrix (quadrature + windowing)
     W = construct_weight_matrix(ws, N)
 
     # compute the realisation scaling constant
-    # FIXME: including κ in the computation messes up the mode magnitude
+    # ! is this correct now?
     sqrt_κ = sqrt(dt/(window_factor(Nf, window)*Nb))
 
     # loop over the frequencies of all the blocks
@@ -73,14 +66,10 @@ function spod(Q::M, ws::AbstractVector, dt::Float64, Nf::Int, No::Int=0; verbose
         Mfk .= Qfk'*W*Qfk
 
         # compute the eigenvalue decomposition
-        eigvals[:, fk], eigvecs = eigen(Hermitian(Mfk), sortby=(x -> -x))
-
-        # take range if needed
-        # FIXME: truncation is broken due to change in size not being compatible with size of original array
-        truncate_eigen!(@view(eigvals[:, fk]), eigvecs, eigrange)
-
-        # convert the eivenvectors to the correct SPOD modes
-        spod_modes[:, :, fk] .= Qfk*eigvecs*Diagonal(@view(eigvals[:, fk]).^-0.5)
+        # ! shouldn't the sort function be abs()?
+        vals, eigvecs = eigen(Hermitian(Mfk), sortby=(x -> -x))
+        eigvals[:, fk] .= @view(vals[1:eigrange])
+        spod_modes[:, :, fk] .= Qfk*@view(eigvecs[:, 1:eigrange])*Diagonal(@view(eigvals[:, fk]).^-0.5)
     end
     verbose && println("Solving Eigenproblem for every frequency... Done!                     ")
 

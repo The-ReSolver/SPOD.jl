@@ -8,7 +8,8 @@ abstract type WindowMethod end
 window_types = [:NoWindow,       :Hamming,     :Bartlett,   :BartlettHann,
                 :BlackmanHarris, :Bohman,      :Chebyshev,  :FlatTop,
                 :Gaussian,       :Hann,        :Kaiser,     :Nuttall,
-                :Parzen,         :Rectangular, :Triangular, :Tukeym]
+                :Parzen,         :Rectangular, :Triangular, :Tukeym,
+                :Welch,          :Sine]
 for window in window_types
     @eval begin
         struct $window <: WindowMethod end
@@ -19,6 +20,9 @@ end
 # define window functions
 window_func(x::Float64, ::NoWindow) = 1.0
 window_func(x::Float64, ::Hann) = 0.5*(1 - cos(2π*x))
+window_func(x::Float64, ::Welch) = 1 - (2*x - 1)^2
+window_func(x::Float64, ::Sine) = sin(π*x)
+window_func(x::Float64, ::Hamming) = 0.53836 + 0.46164*cos(2π*t)
 
 apply_window!(Q::AbstractMatrix, ::NoWindow) = Q
 function apply_window!(Q::AbstractMatrix, window::WindowMethod)
@@ -30,15 +34,14 @@ function apply_window!(Q::AbstractMatrix, window::WindowMethod)
 end
 
 window_factor(Nf::Int, ::NoWindow) = Nf
-window_factor(Nf::Int, window::WindowMethod) = sum(window_func(n/Nf, window) for n in 1:Nf)
+window_factor(Nf::Int, window::WindowMethod) = sum(window_func(n/Nf, window)^2 for n in 0:Nf)
 
 # define fallback methods for unimplemented windows that throw errors
-implemented_windowing = [:NoWindow, :Hann]
+implemented_windowing = [:NoWindow, :Hann, :Welch, :Sine, :Hamming]
 for window in window_types
     if window ∉ implemented_windowing
         @eval begin
-            apply_window!(::AbstractMatrix, ::$window) = throw(ArgumentError(string($window)*" windowing is not implemented yet!"))
-            window_factor(::Int, ::$window) = throw(ArgumentError(string($window)*" windowing is not implemented yet!"))
+            window_func(::Float64, ::$window) = throw(ArgumentError(string($window)*" windowing is not implemented yet!"))
         end
     end
 end
