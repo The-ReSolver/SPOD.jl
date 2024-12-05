@@ -26,14 +26,14 @@ window_func(x::Float64, ::Hamming) = 0.53836 + 0.46164*cos(2π*x)
 apply_window!(Q::AbstractMatrix, ::NoWindow) = Q
 function apply_window!(Q::AbstractMatrix, window::WindowMethod)
     for n in axes(Q, 2)
-        @view(Q[:, n]) .*= window_func(n/size(Q, 2), window)
+        @view(Q[:, n]) .*= window_func((n - 1)/size(Q, 2), window)
     end
 
     return Q
 end
 
 window_factor(Nf::Int, ::NoWindow) = Nf
-window_factor(Nf::Int, window::WindowMethod) = sum(window_func(n/Nf, window)^2 for n in 0:Nf)
+window_factor(Nf::Int, window::WindowMethod) = sum(window_func(n/Nf, window)^2 for n in 0:(Nf - 1))
 
 # define fallback methods for unimplemented windows that throw errors
 implemented_windowing = [:NoWindow, :Hann, :Welch, :Sine, :Hamming]
