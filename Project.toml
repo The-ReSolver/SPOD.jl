@@ -1,7 +1,7 @@
 name = "SPOD"
 uuid = "0ac2d069-28cd-4d1e-aa57-4eb7242fcd6c"
 authors = ["Thomas Burton <tburton5572@gmail.com>"]
-version = "0.3.0"
+version = "0.3.1"
 
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
