@@ -18,11 +18,10 @@ for window in window_types
 end
 
 # define window functions
-window_func(x::Float64, ::NoWindow) = 1.0
 window_func(x::Float64, ::Hann) = 0.5*(1 - cos(2π*x))
 window_func(x::Float64, ::Welch) = 1 - (2*x - 1)^2
 window_func(x::Float64, ::Sine) = sin(π*x)
-window_func(x::Float64, ::Hamming) = 0.53836 + 0.46164*cos(2π*t)
+window_func(x::Float64, ::Hamming) = 0.53836 + 0.46164*cos(2π*x)
 
 apply_window!(Q::AbstractMatrix, ::NoWindow) = Q
 function apply_window!(Q::AbstractMatrix, window::WindowMethod)
